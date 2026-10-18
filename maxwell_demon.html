@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="hy">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Մաքսվելի դևը</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Armenian:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070a14;--panel:#0d1224;--border:#2a3560;--ink:#e9edff;
+  --mute:#8f9bd0;--gold:#ffd166;--ok:#3cf08c;--blue:#4d8dff;--red:#ff5a4d;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  min-height:100vh;padding:16px;display:flex;flex-direction:column;
+  background:var(--bg);color:var(--ink);
+  font-family:"Noto Sans Armenian",system-ui,-apple-system,sans-serif;
+}
+header,.panel-box{
+  background:var(--panel);border:1px solid var(--border);border-radius:14px;
+}
+header{
+  padding:14px 20px;display:flex;flex-wrap:wrap;align-items:center;
+  justify-content:space-between;gap:16px;margin-bottom:16px;
+}
+.title-group,.controls{display:flex;align-items:center;gap:12px}
+.title-group{flex-wrap:wrap}.controls{flex-wrap:wrap;gap:10px}
+h1{font-size:22px;font-weight:700;color:#fff;letter-spacing:.3px;text-align: center;}
+.badge{
+  padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;
+  color:var(--blue);background:#4d8dff26;border:1px solid #4d8dff4d;
+}
+button,label{
+  font-family:inherit;font-size:14px;font-weight:600;color:var(--ink);
+  background:#141b38;border:1px solid var(--border);border-radius:8px;
+}
+button{padding:8px 16px;cursor:pointer;transition:all .2s ease}
+button:hover{background:#1c2752;border-color:#3b4b80}
+button.on{border-color:var(--ok);color:var(--ok);background:#3cf08c1a}
+label{
+  display:flex;align-items:center;gap:8px;padding:6px 12px;
+  color:var(--mute);font-size:13px;font-weight:500;
+}
+input[type=range]{accent-color:var(--blue);cursor:pointer}
+.dashboard-grid{display:grid;grid-template-columns:1fr;gap:16px;flex:1}
+.col-left,.col-right{display:flex;flex-direction:column;gap:16px}
+.panel-box{padding:16px;display:flex;flex-direction:column}
+.panel-box.fill{flex:1}
+.panel-title{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:12px;font-size:15px;font-weight:700;color:var(--ink);
+}
+.metrics-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.metric-card{
+  padding:10px 12px;text-align:center;background:#090e1f;
+  border:1px solid #1c264a;border-radius:10px;
+}
+.metric-lbl{font-size:11px;color:var(--mute);margin-bottom:4px}
+.metric-val{font-size:18px;font-weight:700}
+.metric-sub{font-size:10px;color:#5d6c9e;margin-top:2px}
+canvas{display:block;width:100%;height:auto}
+@media(min-width:640px){.metrics-grid{grid-template-columns:repeat(4,1fr)}}
+@media(min-width:1024px){.dashboard-grid{grid-template-columns:1.8fr 1.2fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="title-group">
+    <h1 style="text-align: center;">Մաքսվելի դևը</h1>
+  </div>
+  <div class="controls">
+    <button id="bDemon" class="on">Դևը աշխատում է</button>
+    <button id="bPause">Դադար</button>
+    <button id="bReset">Սկսել նորից</button>
+    <button id="bColor">Գույներ</button>
+    <label>Արագությունը <input id="spd" type="range" min="1" max="8" value="2"></label>
+  </div>
+</header>
+
+<div class="dashboard-grid">
+  <div class="col-left">
+    <section class="panel-box">
+      <div class="panel-title">
+        <span>Աշխատանքային խցիկները և դևը</span>
+        <span id="thresholdLbl" style="color:var(--gold);font-size:13px">v₀ = 0.00 (միջին արագություն)</span>
+      </div>
+      <canvas id="boxCv" width="1000" height="520"></canvas>
+      <canvas id="legendCv" width="1000" height="50" style="margin-top:12px"></canvas>
+    </section>
+    <section class="panel-box fill">
+      <div class="panel-title"><span>Միջին կինետիկ էներգիա (≈ ջերմաստիճան)</span></div>
+      <canvas id="graphCv" width="1000" height="220"></canvas>
+    </section>
+  </div>
+
+  <div class="col-right">
+    <section class="panel-box">
+      <div class="panel-title"><span>Ցուցանիշներ</span></div>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-lbl">T ձախ</div><div id="mTL" class="metric-val" style="color:var(--blue)">0.00</div>
+          <div id="mNL" class="metric-sub">0 մասնիկ</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-lbl">T աջ</div><div id="mTR" class="metric-val" style="color:var(--red)">0.00</div>
+          <div id="mNR" class="metric-sub">0 մասնիկ</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-lbl">ΔT (T_աջ - T_ձախ)</div><div id="mDT" class="metric-val" style="color:var(--gold)">0.00</div>
+          <div class="metric-sub">տարբերություն</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-lbl">Կարգավորվածություն</div><div id="mSort" class="metric-val" style="color:var(--ok)">0%</div>
+          <div class="metric-sub">էֆեկտիվություն</div>
+        </div>
+      </div>
+    </section>
+    <section class="panel-box">
+      <div class="panel-title"><span>Արագությունների բաշխում՝ ձախ խցիկ</span></div>
+      <canvas id="hlCv" width="500" height="220"></canvas>
+    </section>
+    <section class="panel-box">
+      <div class="panel-title"><span>Արագությունների բաշխում՝ աջ խցիկ</span></div>
+      <canvas id="hrCv" width="500" height="220"></canvas>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  const N=220,W=2,H=1,WALL=1,GAP=.09,DT=.03,SIGMA=.55,NB=24;
+  const FONT='"Noto Sans Armenian","Segoe UI",Arial,sans-serif';
+  const $=id=>document.getElementById(id);
+  const canvas=id=>{const cv=$(id);return [cv,cv.getContext('2d')]};
+  const [boxCv,boxCtx]=canvas('boxCv'),[legendCv,legendCtx]=canvas('legendCv');
+  const [graphCv,graphCtx]=canvas('graphCv'),[hlCv,hlCtx]=canvas('hlCv'),[hrCv,hrCtx]=canvas('hrCv');
+
+  let px,py,vx,vy,vth,doorOpen=0,demonOn=true,paused=false,smooth=true;
+  let hl,hr,histC=[],histH=[],steps=0,stepsPerFrame=2,doorAmt=0,ripples=[];
+
+  const gauss=()=>{
+    let u=0,v=0;
+    while(!u)u=Math.random();
+    while(!v)v=Math.random();
+    return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+  };
+  const speed=i=>Math.hypot(vx[i],vy[i]);
+  const BLUE=[77,141,255],MID=[236,236,248],RED=[255,90,77];
+  const mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
+  const rgba=(c,a)=>`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`;
+
+  function rgb(sp){
+    if(!smooth)return sp>vth?RED:BLUE;
+    const t=Math.min(1,sp/(2*vth));
+    return t<.5?mix(BLUE,MID,t*2):mix(MID,RED,(t-.5)*2);
+  }
+
+  function init(){
+    px=new Float32Array(N);py=new Float32Array(N);
+    vx=new Float32Array(N);vy=new Float32Array(N);
+    for(let i=0;i<N;i++){
+      px[i]=.03+Math.random()*(W-.06);py[i]=.03+Math.random()*(H-.06);
+      vx[i]=gauss()*SIGMA;vy[i]=gauss()*SIGMA;
+    }
+    vth=Array.from({length:N},(_,i)=>speed(i)).sort((a,b)=>a-b)[N>>1];
+    $('thresholdLbl').textContent=`v₀ = ${vth.toFixed(2)} (միջին արագություն)`;
+    hl=new Float32Array(NB);hr=new Float32Array(NB);
+    histC=[];histH=[];steps=0;doorOpen=0;doorAmt=0;ripples=[];
+    for(let k=0;k<40;k++)accumulate();
+  }
+
+  function step(){
+    let opened=false,wanted=false;
+    for(let i=0;i<N;i++){
+      const ox=px[i];
+      px[i]+=vx[i]*DT;py[i]+=vy[i]*DT;
+      if(px[i]<0){px[i]=-px[i];vx[i]*=-1}
+      else if(px[i]>W){px[i]=2*W-px[i];vx[i]*=-1}
+      if(py[i]<0){py[i]=-py[i];vy[i]*=-1}
+      else if(py[i]>H){py[i]=2*H-py[i];vy[i]*=-1}
+
+      const sp=speed(i),inGap=Math.abs(py[i]-H/2)<GAP;
+      const toR=ox<WALL&&px[i]>=WALL,toL=ox>=WALL&&px[i]<WALL;
+      if(toR||toL){
+        const allow=!demonOn?inGap:inGap&&((toR&&sp>vth)||(toL&&sp<vth));
+        if(allow){
+          opened=true;
+          if(demonOn&&ripples.length<60)ripples.push({y:py[i],c:rgb(sp),a:0});
+        }else{px[i]=2*WALL-px[i];vx[i]*=-1}
+      }
+      if(Math.abs(px[i]-WALL)<.12&&Math.abs(py[i]-H/2)<GAP*2){
+        if((px[i]<WALL&&vx[i]>0&&sp>vth)||(px[i]>WALL&&vx[i]<0&&sp<vth))wanted=true;
+      }
+    }
+    doorOpen=(!demonOn||opened||wanted)?6:Math.max(0,doorOpen-1);
+    steps++;
+  }
+
+  function accumulate(){
+    const cl=new Float32Array(NB),cr=new Float32Array(NB),R=3*vth;
+    for(let i=0;i<N;i++){
+      const b=Math.min(NB-1,Math.floor(speed(i)/R*NB));
+      (px[i]<WALL?cl:cr)[b]++;
+    }
+    for(let b=0;b<NB;b++){
+      hl[b]=hl[b]*.94+cl[b]*.06;
+      hr[b]=hr[b]*.94+cr[b]*.06;
+    }
+  }
+
+  function stats(){
+    let ec=0,eh=0,nl=0,ok=0;
+    for(let i=0;i<N;i++){
+      const e=.5*(vx[i]*vx[i]+vy[i]*vy[i]),left=px[i]<WALL;
+      if(left){ec+=e;nl++}else eh+=e;
+      if((speed(i)>vth)===(px[i]>=WALL))ok++;
+    }
+    const tc=nl?ec/nl:0,th=N-nl?eh/(N-nl):0;
+    histC.push(tc);histH.push(th);accumulate();
+    $('mTL').textContent=tc.toFixed(2);$('mTR').textContent=th.toFixed(2);
+    $('mDT').textContent=(th-tc).toFixed(2);$('mNL').textContent=`${nl} մասնիկ`;$('mNR').textContent=`${N-nl} մասնիկ`;
+    $('mSort').textContent=`${Math.round(ok/N*100)}%`;
+  }
+
+  function drawDemon(ctx,cx,base,open){
+    const col=open?'60,240,140':'255,209,102',eye=open?'#7dffb3':'#ffd166';
+    const cy=base-56,flap=Math.sin(steps*.09)*6;
+    ctx.globalCompositeOperation='lighter';
+    for(const [r,a] of [[70,.05],[50,.09],[32,.16]]){
+      ctx.fillStyle=`rgba(${col},${a})`;ctx.beginPath();ctx.arc(cx,cy+8,r,0,6.283);ctx.fill();
+    }
+    ctx.globalCompositeOperation='source-over';ctx.lineJoin='round';ctx.lineCap='round';
+    ctx.fillStyle='#1f0a26';ctx.strokeStyle=`rgba(${col},.85)`;ctx.lineWidth=2;
+    for(const d of [-1,1]){
+      ctx.beginPath();ctx.moveTo(cx+d*8,cy+16);
+      ctx.quadraticCurveTo(cx+d*40,cy-20+flap,cx+d*50,cy-6+flap);
+      ctx.lineTo(cx+d*40,cy+5+flap*.5);ctx.lineTo(cx+d*44,cy+20);
+      ctx.lineTo(cx+d*30,cy+16);ctx.lineTo(cx+d*30,cy+30);
+      ctx.lineTo(cx+d*10,cy+28);ctx.closePath();ctx.fill();ctx.stroke();
+    }
+    ctx.strokeStyle='#ff4d6d';ctx.lineWidth=3.5;ctx.beginPath();
+    ctx.moveTo(cx+6,cy+40);ctx.bezierCurveTo(cx+36,cy+48,cx+48,cy+28,cx+36,cy+16);ctx.stroke();
+    ctx.fillStyle='#ff4d6d';ctx.beginPath();ctx.moveTo(cx+36,cy+8);
+    ctx.lineTo(cx+42,cy+20);ctx.lineTo(cx+30,cy+20);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#2a0f2e';ctx.strokeStyle=`rgba(${col},.9)`;ctx.lineWidth=2;
+    ctx.beginPath();ctx.ellipse(cx,cy+30,14,18,0,0,6.283);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#ff4d6d';
+    for(const d of [-1,1]){
+      ctx.beginPath();ctx.moveTo(cx+d*11,cy-12);
+      ctx.quadraticCurveTo(cx+d*26,cy-20,cx+d*20,cy-42);
+      ctx.quadraticCurveTo(cx+d*11,cy-28,cx+d*4,cy-18);
+      ctx.closePath();ctx.fill();
+    }
+    ctx.fillStyle='#3b1340';ctx.strokeStyle=`rgba(${col},.9)`;ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(cx,cy,20,0,6.283);ctx.fill();ctx.stroke();
+    ctx.shadowColor=eye;ctx.shadowBlur=12;ctx.fillStyle=eye;
+    for(const d of [-1,1]){
+      ctx.beginPath();ctx.ellipse(cx+d*7,cy-2,5.5,3,-d*.4,0,6.283);ctx.fill();
+    }
+    ctx.shadowBlur=0;ctx.strokeStyle=eye;ctx.lineWidth=2;ctx.beginPath();
+    ctx.moveTo(cx-8,cy+7);ctx.quadraticCurveTo(cx,cy+(open?18:13),cx+8,cy+7);ctx.stroke();
+    ctx.fillStyle='#fff';
+    for(const d of [-1,1]){
+      ctx.beginPath();ctx.moveTo(cx+d*5,cy+8);ctx.lineTo(cx+d*2.5,cy+8);
+      ctx.lineTo(cx+d*3.8,cy+13);ctx.closePath();ctx.fill();
+    }
+  }
+
+  function drawBox(){
+    const w=boxCv.width,h=boxCv.height,s=w/W;
+    boxCtx.clearRect(0,0,w,h);boxCtx.save();
+    boxCtx.beginPath();boxCtx.roundRect(0,0,w,h,12);boxCtx.clip();
+    let g=boxCtx.createLinearGradient(0,0,w/2,0);
+    g.addColorStop(0,'rgba(43,108,255,.14)');g.addColorStop(1,'rgba(43,108,255,0)');
+    boxCtx.fillStyle=g;boxCtx.fillRect(0,0,w/2,h);
+    g=boxCtx.createLinearGradient(w,0,w/2,0);
+    g.addColorStop(0,'rgba(255,59,48,.14)');g.addColorStop(1,'rgba(255,59,48,0)');
+    boxCtx.fillStyle=g;boxCtx.fillRect(w/2,0,w/2,h);
+    const gx=WALL*s,gy1=(H/2-GAP)*s,gy2=(H/2+GAP)*s,tw=10,open=doorOpen>0;
+    boxCtx.fillStyle='#8fa0d8';
+    boxCtx.fillRect(gx-tw/2,0,tw,gy1);boxCtx.fillRect(gx-tw/2,gy2,tw,h-gy2);
+    boxCtx.fillStyle=`rgba(60,240,140,${.15+.45*doorAmt})`;
+    boxCtx.fillRect(gx-tw/2,gy1,tw,gy2-gy1);
+    boxCtx.fillStyle='#ff4d6d';boxCtx.fillRect(gx-tw/2,gy1,tw,(gy2-gy1)*(1-doorAmt));
+    boxCtx.globalCompositeOperation='lighter';boxCtx.lineCap='round';boxCtx.lineWidth=3.5;
+    for(let i=0;i<N;i++){
+      const c=rgb(speed(i)),x=px[i]*s,y=py[i]*s;
+      boxCtx.strokeStyle=rgba(c,.3);boxCtx.beginPath();
+      boxCtx.moveTo(x-vx[i]*s*.07,y-vy[i]*s*.07);boxCtx.lineTo(x,y);boxCtx.stroke();
+    }
+    for(let i=0;i<N;i++){
+      const c=rgb(speed(i));boxCtx.fillStyle=rgba(c,.13);
+      boxCtx.beginPath();boxCtx.arc(px[i]*s,py[i]*s,12,0,6.283);boxCtx.fill();
+    }
+    boxCtx.globalCompositeOperation='source-over';
+    for(let i=0;i<N;i++){
+      boxCtx.fillStyle=rgba(rgb(speed(i)),.97);
+      boxCtx.beginPath();boxCtx.arc(px[i]*s,py[i]*s,4.5,0,6.283);boxCtx.fill();
+    }
+    if(demonOn)drawDemon(boxCtx,gx,gy1-4,open);
+    for(const r of ripples){
+      boxCtx.strokeStyle=rgba(r.c,(1-r.a)*.85);boxCtx.lineWidth=2.5;
+      boxCtx.beginPath();boxCtx.arc(gx,r.y*s,8+r.a*50,0,6.283);boxCtx.stroke();
+    }
+    boxCtx.restore();boxCtx.font=`700 16px ${FONT}`;
+    boxCtx.fillStyle='#5b9bff';boxCtx.fillText('Սառը խցիկ',20,32);
+    boxCtx.fillStyle='#ff6b5b';boxCtx.textAlign='right';boxCtx.fillText('Տաք խցիկ',w-20,32);
+    boxCtx.textAlign='left';
+  }
+
+  function drawLegend(){
+    const w=legendCv.width,h=legendCv.height;legendCtx.clearRect(0,0,w,h);
+    if(smooth){
+      const g=legendCtx.createLinearGradient(0,0,w,0);
+      g.addColorStop(0,rgba(BLUE,1));g.addColorStop(.5,rgba(MID,1));g.addColorStop(1,rgba(RED,1));
+      legendCtx.fillStyle=g;legendCtx.beginPath();legendCtx.roundRect(0,4,w,14,7);legendCtx.fill();
+      legendCtx.font=`500 12px ${FONT}`;legendCtx.fillStyle='#8fa0d8';
+      legendCtx.fillText('դանդաղ մասնիկ (սառը)',0,38);
+      legendCtx.fillStyle='#ff8a7d';legendCtx.textAlign='right';
+      legendCtx.fillText('արագ մասնիկ (տաք)',w,38);legendCtx.textAlign='left';
+    }else{
+      legendCtx.fillStyle=rgba(BLUE,1);legendCtx.beginPath();legendCtx.arc(10,12,7,0,6.283);legendCtx.fill();
+      legendCtx.font=`500 13px ${FONT}`;legendCtx.fillStyle='#a9c4ff';
+      legendCtx.fillText('դանդաղ մասնիկ',24,16);
+      legendCtx.fillStyle=rgba(RED,1);legendCtx.beginPath();legendCtx.arc(w/2+10,12,7,0,6.283);legendCtx.fill();
+      legendCtx.fillStyle='#ffb0a8';
+      legendCtx.fillText('արագ մասնիկ',w/2+24,16);
+    }
+  }
+
+  function drawHist(ctx,cv,arr){
+    const w=cv.width,h=cv.height,pad={l:30,r:16,t:16,b:30};
+    const pw=w-pad.l-pad.r,ph=h-pad.t-pad.b,x0=pad.l,y0=pad.t+ph;
+    const max=Math.max(1,...hl,...hr)*1.15;
+    ctx.clearRect(0,0,w,h);ctx.strokeStyle='#1c2547';ctx.lineWidth=1;
+    for(let k=1;k<=3;k++){
+      const yy=y0-ph*k/3;ctx.beginPath();ctx.moveTo(x0,yy);ctx.lineTo(x0+pw,yy);ctx.stroke();
+    }
+    const bw=pw/NB;
+    for(let b=0;b<NB;b++){
+      const hgt=ph*Math.min(1,arr[b]/max),mid=(b+.5)/NB;
+      ctx.fillStyle=rgba(smooth?rgb(mid*3*vth):(mid*3*vth>vth?RED:BLUE),.88);
+      ctx.fillRect(x0+b*bw+1,y0-hgt,bw-2,hgt);
+    }
+    ctx.strokeStyle='#2a3560';ctx.lineWidth=1.5;ctx.beginPath();
+    ctx.moveTo(x0,y0);ctx.lineTo(x0+pw,y0);ctx.stroke();
+    const xv=x0+pw/3;
+    ctx.setLineDash([4,4]);ctx.strokeStyle='#ffd166';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(xv,pad.t);ctx.lineTo(xv,y0);ctx.stroke();ctx.setLineDash([]);
+    ctx.font=`500 11px ${FONT}`;ctx.fillStyle='#ffd166';ctx.fillText('v₀',xv+4,pad.t+12);
+    ctx.fillStyle='#6f7bb0';ctx.fillText('0',x0,y0+16);
+    ctx.textAlign='right';ctx.fillText((3*vth).toFixed(1),x0+pw,y0+16);
+    ctx.textAlign='center';ctx.fillText('արագություն',x0+pw/2,y0+20);ctx.textAlign='left';
+  }
+
+  function drawGraph(){
+    const w=graphCv.width,h=graphCv.height,pad={l:40,r:16,t:16,b:30};
+    const pw=w-pad.l-pad.r,ph=h-pad.t-pad.b,x0=pad.l,y0=pad.t+ph,n=histC.length;
+    let top=.01;
+    for(let i=0;i<n;i++)top=Math.max(top,histC[i],histH[i]);
+    top*=1.15;const tmax=Math.max(n,400);
+    graphCtx.clearRect(0,0,w,h);graphCtx.strokeStyle='#1c2547';graphCtx.lineWidth=1;
+    for(let k=0;k<=4;k++){
+      const yy=y0-ph*k/4;graphCtx.beginPath();
+      graphCtx.moveTo(x0,yy);graphCtx.lineTo(x0+pw,yy);graphCtx.stroke();
+      graphCtx.font=`500 11px ${FONT}`;graphCtx.fillStyle='#6f7bb0';graphCtx.textAlign='right';
+      graphCtx.fillText((top*k/4).toFixed(2),x0-6,yy+4);
+    }
+    const stepX=Math.max(1,Math.floor(n/pw));
+    const line=(arr,col)=>{
+      graphCtx.strokeStyle=col;graphCtx.lineWidth=2.5;graphCtx.lineJoin='round';graphCtx.beginPath();
+      for(let i=0;i<n;i+=stepX){
+        const xx=x0+pw*i/tmax,yy=y0-ph*arr[i]/top;
+        i?graphCtx.lineTo(xx,yy):graphCtx.moveTo(xx,yy);
+      }
+      graphCtx.stroke();
+    };
+    line(histC,'#4d8dff');line(histH,'#ff5a4d');
+    graphCtx.font=`500 12px ${FONT}`;graphCtx.fillStyle='#6f7bb0';graphCtx.textAlign='center';
+    graphCtx.fillText('ժամանակ',x0+pw/2,y0+22);
+    graphCtx.fillStyle='#4d8dff';graphCtx.fillRect(w-220,10,16,3);
+    graphCtx.fillStyle='#a9c4ff';graphCtx.textAlign='left';graphCtx.fillText('ձախ',w-198,14);
+    graphCtx.fillStyle='#ff5a4d';graphCtx.fillRect(w-130,10,16,3);
+    graphCtx.fillStyle='#ffb0a8';graphCtx.fillText('աջ',w-108,14);
+  }
+
+  function draw(){
+    drawBox();drawLegend();drawHist(hlCtx,hlCv,hl);drawHist(hrCtx,hrCv,hr);drawGraph();
+  }
+  function frame(){
+    if(!paused){
+      for(let k=0;k<stepsPerFrame;k++)step();
+      stats();doorAmt+=((doorOpen>0?1:0)-doorAmt)*.3;
+      for(const r of ripples)r.a+=.045;
+      ripples=ripples.filter(r=>r.a<1);
+    }
+    draw();requestAnimationFrame(frame);
+  }
+
+  $('bDemon').onclick=e=>{
+    demonOn=!demonOn;e.target.textContent=demonOn?'Դևը աշխատում է':'Դևը անջատված է';
+    e.target.classList.toggle('on',demonOn);
+  };
+  $('bPause').onclick=e=>{
+    paused=!paused;e.target.textContent=paused?'Շարունակել':'Դադար';
+  };
+  $('bReset').onclick=init;
+  $('bColor').onclick=e=>{
+    smooth=!smooth;e.target.textContent=smooth?'Գույներ՝ սահուն':'Գույներ՝ երկու դաս';
+  };
+  $('spd').oninput=e=>stepsPerFrame=+e.target.value;
+  init();frame();
+})();
+</script>
+</body>
+</html>
